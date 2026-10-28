@@ -602,7 +602,7 @@ body.dashmode .phase, body.dashmode main { max-width: none; }
 .db-go { display: flex; gap: var(--space-xs); margin-left: auto; }
 .db-go .btn.go { min-width: 240px; min-height: 48px; }
 @media (max-width: 1099px) { .db-go { display: none; } }
-@media (max-width: 719px) { .db-links { display: none; } }
+@media (max-width: 719px) { .db-links { display: none; } .dashbar { justify-content: center; text-align: center; } }
 .dash { display: grid; gap: var(--space-md); align-items: start; }
 .dcol { display: grid; gap: var(--space-md); align-content: start; min-width: 0; }
 .p-feature { display: grid; gap: var(--space-md); min-width: 0; }
@@ -620,8 +620,8 @@ body.dashmode .phase, body.dashmode main { max-width: none; }
  .p-inbox .inbox { max-height: 520px; overflow-y: auto; }
 }
 @media (max-width: 719px) {
- .dash { display: flex; flex-direction: column; } .dcol { display: contents; }
- .p-feature { order: 1; } .duo { order: 2; } .p-cal { order: 3; } .p-sched { order: 4; } .p-inbox { order: 5; } .p-table { order: 6; } .p-snap { order: 7; } .p-goal { order: 8; } .p-rec { order: 9; }
+ .dash { display: flex; flex-direction: column; align-items: stretch; } .dcol { display: contents; }
+ .p-feature { order: 1; } .duo { order: 2; } .p-proj { order: 3; } .p-cal { order: 4; } .p-sched { order: 5; } .p-inbox { order: 6; } .p-table { order: 7; } .p-snap { order: 8; } .p-goal { order: 9; } .p-rec { order: 10; }
  .p-inbox .inbox { max-height: 440px; overflow-y: auto; }
 }
 .dpanel { display: grid; gap: var(--space-sm); align-content: start; min-width: 0; padding: var(--space-md); border: var(--rule-hair) solid var(--color-rule); border-radius: 14px; background: var(--color-paper-2); }
@@ -671,9 +671,17 @@ button.cal-g { cursor: pointer; } button.cal-g:hover { border-color: var(--color
 /* the calendar sizes itself to its panel: badges only when the days are wide enough */
 .p-cal { container-type: inline-size; }
 @container (max-width: 760px) { .cal-g { grid-template-columns: minmax(0, 1fr); } .cal-g .mono { display: none; } }
+.cal-ag { display: none; margin: 0; padding: 0; list-style: none; }
 @container (max-width: 520px) {
- .cal-d { min-height: 70px; padding: var(--space-2xs); gap: var(--space-2xs); }
- .cal-g { padding: var(--space-3xs) var(--space-2xs); font-size: 10px; }
+ .cal-ag { display: grid; border-top: var(--rule-hair) solid var(--color-rule-2); }
+ .cal-ag li { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: var(--space-xs); padding-block: var(--space-xs); border-bottom: var(--rule-hair) solid var(--color-rule-2); font-size: var(--text-sm); }
+ .cal-ag li:last-child { border-bottom: 0; }
+ .cal-ag li.today .ag-d { color: var(--color-accent); font-weight: 600; }
+ .ag-d { color: var(--color-muted); font-variant-numeric: tabular-nums; }
+ .ag-x { display: grid; gap: var(--space-3xs); min-width: 0; } .ag-g b { font-weight: 500; }
+ .cal-d { min-height: 52px; padding: var(--space-2xs); gap: var(--space-2xs); }
+ .cal-d .cal-n, .cal-g > span:last-child, .cal-g > b { display: none; }
+ .cal-g { justify-content: center; text-align: center; padding: var(--space-3xs) 0; font-size: 9px; letter-spacing: -0.02em; } .cal .ph-only { display: none; }
  .cal-n { font-size: 9px; padding: 0 var(--space-3xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .cal-p { display: none; }
  .cal .ph-hide { display: none; }
 }
@@ -704,6 +712,12 @@ button.cal-g { cursor: pointer; } button.cal-g:hover { border-color: var(--color
 .lg-score > span:first-child { font: 700 var(--text-sm)/1 var(--font-body); }
 .lg-score b { font: 400 var(--text-2xl)/1 var(--font-display); letter-spacing: -0.03em; }
 .goal { font: 500 var(--text-lg)/1.25 var(--font-display); letter-spacing: -0.01em; }
+
+/* ---------- projections ---------- */
+.pj-run { display: grid; gap: var(--space-xs); }
+.pj-bar { height: 4px; border-radius: 2px; background: var(--color-rule); overflow: hidden; }
+.pj-bar i { display: block; width: 100%; height: 100%; background: var(--color-accent); transform-origin: left center; transition: transform var(--dur-short) var(--ease-out); }
+.li.ours { box-shadow: inset 2px 0 0 var(--color-accent); padding-left: var(--space-xs); }
 
 </style>
 </head>
@@ -3004,6 +3018,108 @@ function scoutReport(oppId) {
   ${tac >= 70 ? `<div class="small"><b>Tendency</b> (from your tactics assistant): when they trail at the half, they ${predictedAdjust(o)}.</div>` : `<div class="small muted">A tactics assistant rated 70+ would also pick up their halftime tendencies.</div>`}</section>`;
 }
 
+/* ============ Preseason projections and honors ============
+   Before tip-off the game engine plays a slate of exhibition games for every team: each program hosts four
+   (two against conference opponents, two against others) and plays more as a visitor, so each roster is seen about
+   eight times; your own team gets twenty more for a sharper read. Per-game lines for every player come straight out
+   of those box scores, with your rotation and scheme as they stand. The work runs in slices so the page stays responsive.
+   From the projections come the preseason All-America and all-conference teams. After the season the same numbers are
+   set against what actually happened. */
+const PJ_HOME = 4, PJ_MINE = 20, PJ_EXTRA = 6, PJ_STAGE2 = 70;
+const PJ = {acc: null, tg: null, i: 0, y: 0, timer: 0, s2: null};
+const PJ_F = ["g", "min", "pts", "reb", "ast", "stl", "blk", "tov", "fgm", "fga", "tpm", "tpa", "ftm", "fta"];
+function pjNeeded() { return !!(G && G.me && G.phase === "preseason" && !(G.proj && G.proj.y === G.year && G.proj.done)); }
+function pjReset() { PJ.acc = {}; PJ.tg = {}; PJ.i = 0; PJ.y = G.year; PJ.s2 = null; }
+function pjTotal() { return G.teams.length + 1 + PJ_STAGE2; }
+function pjProgress() { return PJ.y === G.year && PJ.acc ? Math.min(0.99, PJ.i / pjTotal()) : 0; }
+function pjAdd(gs) {
+ for (const sd of gs.s) {
+  PJ.tg[sd.team.id] = (PJ.tg[sd.team.id] || 0) + 1;
+  sd.ps.forEach((p, i) => {
+   const sec = sd.sec[i]; if (sec <= 0) return; const b = sd.box[i], a = PJ.acc[p.id] || (PJ.acc[p.id] = new Float64Array(14));
+   a[0]++; a[1] += sec / 60; a[2] += b[3]; a[3] += b[10] + b[11]; a[4] += b[12]; a[5] += b[13]; a[6] += b[14]; a[7] += b[15]; a[8] += b[4]; a[9] += b[5]; a[10] += b[6]; a[11] += b[7]; a[12] += b[8]; a[13] += b[9];
+  });
+ }
+}
+function pjGame(h, a, seed) {
+ const mt = G.me.tid, gs = newGame(h, a, 0, {hs: h.id === mt ? G.strat : null, as: a.id === mt ? G.strat : null, fast: true, hb: cpuEdge(h), ab: cpuEdge(a), seed});
+ runGame(gs, "end"); pjAdd(gs);
+}
+function pjTeam(i) {
+ const rng = mulberry32((G.year * 7919 + i * 104729) | 0), teams = G.teams;
+ if (i > teams.length) { // second look: the teams with the leading candidates for the preseason teams play six more
+  if (!PJ.s2) { const cand = []; for (const id in PJ.acc) { const p = G.P[id]; if (p && p.tid >= 0) cand.push([p, pjScore(p, pjLine(PJ.acc[id], PJ.tg[p.tid] || 1))]); } cand.sort((a, b) => b[1] - a[1]); PJ.s2 = [...new Set(cand.slice(0, 160).map(x => x[0].tid))].slice(0, PJ_STAGE2); }
+  const t = T(PJ.s2[i - teams.length - 1]); if (!t) return; const mates = G.confs[t.conf] ? G.confs[t.conf].m.filter(id => id !== t.id) : [];
+  for (let k = 0; k < PJ_EXTRA; k++) { const o = k % 2 && mates.length ? T(mates[Math.floor(rng() * mates.length)]) : teams[Math.floor(rng() * teams.length)]; if (!o || o === t) continue; engineTry(() => k < 3 ? pjGame(t, o, (G.year * 37 + i * 19 + k) | 0) : pjGame(o, t, (G.year * 37 + i * 19 + k) | 0)); }
+  return;
+ }
+ if (i < teams.length) {
+  const t = teams[i], mates = G.confs[t.conf] ? G.confs[t.conf].m.filter(id => id !== t.id) : [];
+  for (let k = 0; k < PJ_HOME; k++) {
+   const pool = k < 2 && mates.length ? mates : null, o = pool ? T(pool[Math.floor(rng() * pool.length)]) : teams[Math.floor(rng() * teams.length)];
+   if (!o || o === t) continue;
+   engineTry(() => pjGame(t, o, (G.year * 31 + i * 17 + k) | 0));
+  }
+ } else { // extra looks at your team, half at home and half away
+  const me = T(G.me.tid);
+  for (let k = 0; k < PJ_MINE; k++) { const o = teams[Math.floor(rng() * teams.length)]; if (o === me) continue; engineTry(() => k % 2 ? pjGame(o, me, (G.year * 13 + k) | 0) : pjGame(me, o, (G.year * 13 + k) | 0)); }
+ }
+}
+function pjStep(budgetMs) {
+ if (!pjNeeded()) return true;
+ if (PJ.y !== G.year || !PJ.acc) pjReset();
+ const t0 = performance.now(), N = pjTotal();
+ while (PJ.i < N && performance.now() - t0 < budgetMs) { pjTeam(PJ.i); PJ.i++; }
+ if (PJ.i >= N) { pjFinish(); return true; }
+ return false;
+}
+// run in the background while the preseason screen is up
+function pjKick() {
+ if (!pjNeeded() || PJ.timer) return;
+ const tick = () => { PJ.timer = 0; if (!pjNeeded()) return; const done = pjStep(40); const bar = document.getElementById("pjbar"); if (bar) bar.style.transform = `scaleX(${pjProgress().toFixed(3)})`;
+  if (done) { if (UI.tab === "home" || (UI.tab === "team" && UI.sub === "proj")) render(); else renderFrame(); } else PJ.timer = setTimeout(tick, 16); };
+ PJ.timer = setTimeout(tick, 60);
+}
+function pjFinishNow() { if (pjNeeded()) { if (PJ.timer) { clearTimeout(PJ.timer); PJ.timer = 0; } pjStep(Infinity); } }
+// per-game line from the accumulated totals
+function pjLine(a, tg) {
+ const g = Math.max(1, a[0]), r1 = x => Math.round(x * 10) / 10, r3 = x => Math.round(x * 1000) / 1000;
+ const val = (a[2] + 0.8 * a[3] + 1.1 * a[4] + 1.3 * (a[5] + a[6]) - 0.7 * (a[9] - a[8]) - 0.4 * (a[13] - a[12]) - a[7]) / g;
+ return {gp: r3(a[0] / Math.max(1, tg)), min: r1(a[1] / g), pts: r1(a[2] / g), reb: r1(a[3] / g), ast: r1(a[4] / g), stl: r1(a[5] / g), blk: r1(a[6] / g), tov: r1(a[7] / g),
+  fg: a[9] ? r3(a[8] / a[9]) : 0, tp: a[11] ? r3(a[10] / a[11]) : 0, tpa: r1(a[11] / g), ft: a[13] ? r3(a[12] / a[13]) : 0, val: r1(val)};
+}
+function pjScore(p, L) { const t = T(p.tid); return L.val * (1 + clamp(proj(t), -20, 35) / 90) * (L.gp >= 0.6 ? 1 : 0.5); }
+function pjFinish() {
+ const by = {}, cand = [];
+ for (const id in PJ.acc) {
+  const p = G.P[id]; if (!p || p.tid < 0) continue;
+  const L = pjLine(PJ.acc[id], PJ.tg[p.tid] || 1); L.sc = Math.round(pjScore(p, L) * 10) / 10; cand.push([p, L]);
+ }
+ cand.sort((a, b) => b[1].sc - a[1].sc);
+ // keep lines for your team, the national top 120 and each conference's top eight
+ const keep = new Set(), per = {};
+ cand.forEach(([p, L], k) => { const c = T(p.tid).conf; per[c] = (per[c] || 0) + 1; if (isMe(p.tid) || k < 120 || per[c] <= 8) keep.add(p.id); });
+ for (const [p, L] of cand) if (keep.has(p.id)) by[p.id] = L;
+ const aa = cand.slice(0, 10).map(x => x[0].id), conf = {};
+ for (const code in G.confs) conf[code] = cand.filter(([p]) => T(p.tid).conf === code).slice(0, 5).map(x => x[0].id);
+ G.proj = {y: G.year, done: 1, by, aa, conf, poy: aa[0], tid: G.me.tid};
+ PJ.acc = null; PJ.tg = null;
+ // the announcements
+ const me = T(G.me.tid), mineAA = aa.filter(id => isMe(G.P[id].tid)), mineC = (conf[me.conf] || []).filter(id => isMe(G.P[id].tid));
+ addNews(`Preseason All-America: ${aa.slice(0, 5).map(id => `${pName(G.P[id])} (${T(G.P[id].tid).n})`).join(", ")}. ${pName(G.P[aa[0]])} is the preseason Player of the Year.`, "big");
+ if (mineAA.length) addNews(`${mineAA.map(id => pName(G.P[id])).join(" and ")} ${mineAA.length > 1 ? "were" : "was"} named preseason All-American${mineAA.length > 1 ? "s" : ""}.`, "big");
+ if (mineC.length) addNews(`Preseason all-${confName(me.conf, G.year)}: ${mineC.map(id => pName(G.P[id])).join(", ")}.`, "");
+ save();
+}
+// how a player did against his projection; null if he had none or barely played
+function pjVs(p) {
+ const P = G.proj; if (!P || !P.by || !p) return null; const L = P.by[p.id], s = p.s; if (!L) return null;
+ const g = s && s[0] ? s[0] : 0;
+ if (!g) return {L, g: 0};
+ return {L, g, pts: s[3] / g, reb: (s[10] + s[11]) / g, ast: s[12] / g, min: s[2] / g, fg: s[5] ? s[4] / s[5] : 0, tp: s[7] ? s[6] / s[7] : 0, val: playerVal(p)};
+}
+function pjVerdict(d) { return d >= 3 ? ["Beat it", "w"] : d <= -3 ? ["Fell short", "l"] : ["On track", ""]; }
+
 /* ============ Career setup, the calendar, weekly processing, tournaments, offseason steps ============ */
 function newCareer(o) {
  initWorld({mode: o.mode === "career" ? "current" : o.mode, year: o.year, seed: o.seed, diff: o.diff, realistic: o.realistic});
@@ -3436,6 +3552,7 @@ function render() {
  if (!G || !G.me) html = rStart();
  else html = ({home: rHome, team: rTeam, games: rGames, rec: rRecruit, prog: rProgram, league: rLeague})[UI.tab]();
  $("#main").innerHTML = html; document.body.classList.toggle("dashmode", isDash());
+ if (pjNeeded()) pjKick();
  if (UI.modal) renderModal(); else { $("#modal").hidden = true; $("#modal").innerHTML = ""; }
  afterRender();
 }
@@ -3828,7 +3945,7 @@ function rReview() {
   <div class="list">${R2.lines.map(([l, d]) => `<div class="li"><span class="grow small">${esc(l)}</span><b class="num ${d >= 0 ? "good" : "bad"}">${sgn(Math.round(d), 0)}</b></div>`).join("")}</div>
   <div class="between"><span>Job security</span><b class="num">${R2.before} → <span class="${secTxt(R2.after)}">${R2.after}</span></b></div>${meter(R2.after, secCls(R2.after))}
   <div class="banner ${verdict[0]}">${verdict[1]}</div><div class="small muted">Coaching reputation ${R2.rd >= 0 ? "rose" : "fell"} to ${G.me.rep}. Recruits and other athletic directors notice.</div></section>
-  ${G.chal && G.chal.resY === G.year ? chalCard() : ""}${extensionCard()}${reviewExtras()}
+  ${G.chal && G.chal.resY === G.year ? chalCard() : ""}${extensionCard()}${reviewExtras()}${pjReview()}
   <div class="rowx">${btn("share", "Share this season", {k: "season", c: "sm"})}</div>
   <section class="card"><h2 class="ttl">National awards</h2>
    ${poy ? `<div class="small">Player of the Year: <b>${esc(pName(poy))}</b>, ${esc(T(poy.tid).n)}: ${f1(poy.s[3] / poy.s[0])} ppg, ${f1((poy.s[10] + poy.s[11]) / poy.s[0])} rpg</div>` : ""}
@@ -4013,9 +4130,17 @@ function rCalendar() {
    return `<div class="cal-d${today ? " today" : ""}${past ? " past" : ""}${dead ? " dead" : ""}${gs.length ? " gd" : ""}" role="cell" aria-label="${fmtDay(dt, true)}${gs.length ? ", game day" : ""}"><span class="cal-dn">${dt.getUTCDate() === 1 || d === 0 && cw === w0 ? `<i class="ph-hide">${MON[dt.getUTCMonth()]} </i>` : ""}${dt.getUTCDate()}</span>${games}${notes}${pr}</div>`; }).join("")}</div>`;
  };
  const m0 = calDate(w0, 0), m1 = calDate(w0 + 1, 6), dead = w0 < NWEEKS && (deadWeek(w0) || deadWeek(w0 + 1));
+ // on a narrow panel the grid keeps the shape of the two weeks and this list carries the detail
+ const agenda = [];
+ for (const cw of [w0, w0 + 1]) for (let d = 0; d < 7; d++) {
+  const gs = byDay[cw * 7 + d] || [], notes = calNotes(cw, d), today = cw === nw && d === nd; if (!gs.length && !notes.length && !today) continue;
+  const items = gs.map(g => { const o = oppOf(g), my = isMe(g.h) ? g.hs : g.as, th = isMe(g.h) ? g.as : g.hs, q = !g.done && g.a >= 0 ? quickOdds(T(g.h), T(g.a), g.neu) : null, pw = q ? (isMe(g.h) ? q.p : 1 - q.p) : null;
+   return `<span class="ag-g"><b>${g.neu ? "vs" : isMe(g.h) ? "vs" : "at"} ${g.a >= 0 ? tName(o.id) : "Non-D1 opponent"}</b>${g.done ? ` <span class="${my > th ? "good" : "bad"}">${my > th ? "W" : "L"} ${my}-${th}</span>` : pw !== null ? ` <span class="muted">${pct(pw)} win chance</span>` : ""}${g.rv ? ' <span class="pill">Rivalry</span>' : ""}</span>`; });
+  agenda.push(`<li class="${today ? "today" : ""}"><span class="ag-d">${fmtDay(calDate(cw, d))}${today ? " · Today" : ""}</span><span class="ag-x">${items.join("")}${notes.map(([, l]) => `<span class="muted">${l}</span>`).join("")}${!items.length && !notes.length ? '<span class="muted">Practice</span>' : ""}</span></li>`);
+ }
  return `<section class="dpanel p-cal" aria-label="Calendar"><div class="dp-h"><h2 class="dp-t">Calendar</h2><span class="dp-sub">${MON[m0.getUTCMonth()]} ${m0.getUTCDate()} to ${MON[m1.getUTCMonth()]} ${m1.getUTCDate()}${dead ? ", recruiting dead period" : ""}</span>
   <span class="dp-tools">${btn("calnav", "‹", {k: -1, c: "sm ghost", dis: w0 <= 0, title: "Earlier weeks"})}${off ? btn("calnav", "Today", {k: 0, c: "sm ghost"}) : ""}${btn("calnav", "›", {k: 1, c: "sm ghost", dis: w0 >= NWEEKS + 3, title: "Later weeks"})}</span></div>
-  <div class="cal" role="table" aria-label="Two weeks"><div class="cal-hd" role="row">${DOW.map(d => `<span role="columnheader">${d}</span>`).join("")}</div>${row(w0)}${row(w0 + 1)}</div></section>`;
+  <div class="cal" role="table" aria-label="Two weeks"><div class="cal-hd" role="row">${DOW.map(d => `<span role="columnheader">${d}</span>`).join("")}</div>${row(w0)}${row(w0 + 1)}</div>${agenda.length ? `<ul class="cal-ag" aria-label="Coming up">${agenda.join("")}</ul>` : ""}</section>`;
 }
 
 // ---------- inbox ----------
@@ -4107,10 +4232,72 @@ function rDashboard() {
  feat.push(nextCard());
  return `${tipBox("dash", "Your office: the inbox on the left, the next game and the calendar in the middle, the schedule and standings on the right. Continue moves the calendar forward.")}${dashBar()}
   <div class="dash">
-   <div class="dcol c2"><div class="p-feature">${feat.join("")}</div><div class="duo">${rOppReport()}${rLastGame()}</div>${rCalendar()}</div>
+   <div class="dcol c2"><div class="p-feature">${feat.join("")}</div><div class="duo">${rOppReport()}${rLastGame()}</div>${pjDash()}${rCalendar()}</div>
    <div class="dcol c3">${rFixtures()}${rTable()}${rSnapshot()}${rDashGoal()}${rDashRec()}</div>
    <div class="dcol c1">${rInbox()}</div>
   </div>`;
+}
+
+/* ============ Projections on screen: Team > Projections, the preseason panels, honors, and the season-end check ============ */
+function pjPending() { return pjNeeded() ? `<div class="pj-run"><div class="small">The model is playing your season and everyone else's to build projections${PJ.acc ? ` (${Math.round(pjProgress() * 100)}%)` : ""}.</div><div class="pj-bar"><i id="pjbar" style="transform:scaleX(${pjProgress().toFixed(3)})"></i></div></div>` : ""; }
+function pjOk() { return !!(G.proj && G.proj.done && G.proj.y === G.year && G.proj.by); }
+const d1 = (a, b) => { const d = a - b; return `<span class="${d >= 0.5 ? "good" : d <= -0.5 ? "bad" : "muted"}">${sgn(d, 1)}</span>`; };
+function rProjections() {
+ const t = T(G.me.tid);
+ if (!pjOk()) return `<section class="card"><h2 class="h-disp">Projections</h2>${pjNeeded() ? pjPending() : '<p class="small muted">Projections are made in the preseason. The next set comes before the next tip-off.</p>'}</section>`;
+ const P = G.proj, rows = t.ros.map(id => G.P[id]).filter(p => p && P.by[p.id]).map(p => [p, P.by[p.id], pjVs(p)]).sort((a, b) => b[1].pts - a[1].pts);
+ const played = rows.some(r => r[2] && r[2].g), honor = id => P.aa.indexOf(id) >= 0 ? `<span class="pill a">${P.aa.indexOf(id) < 5 ? "All-America" : "All-America, 2nd"}</span>` : (P.conf[t.conf] || []).includes(id) ? '<span class="pill">All-conference</span>' : "";
+ return `<section class="card"><div class="between"><div><h2 class="h-disp">Projections</h2><p class="sub">${seasonLbl(G.year)} preseason model${played ? ", with this season so far" : ""}</p></div></div>
+  <p class="small muted">Before tip-off the game engine played about 30 games with your roster, rotation and scheme, and about 8 for every other team. These are the per-game lines it expects when a player is in uniform.${played ? " Actual numbers fill in as the season goes." : ""}</p>
+  <div class="tw"><table class="tbl wide"><thead><tr><th>Player</th><th class="r">Min</th><th class="r">Pts</th>${played ? '<th class="r">Actual</th><th class="r">±</th>' : ""}<th class="r">Reb</th>${played ? '<th class="r">Actual</th>' : ""}<th class="r">Ast</th>${played ? '<th class="r">Actual</th>' : ""}<th class="r">FG%</th><th class="r">3P%</th><th class="r">Value</th></tr></thead><tbody>
+  ${rows.map(([p, L, v]) => `<tr class="click" data-act="player" data-k="${p.id}"><td>${posTag(p)} ${esc(pShort(p))} ${honor(p.id)}</td><td class="r num">${f1(L.min)}</td><td class="r num"><b>${f1(L.pts)}</b></td>${played ? `<td class="r num">${v && v.g ? f1(v.pts) : "-"}</td><td class="r num">${v && v.g ? d1(v.pts, L.pts) : ""}</td>` : ""}<td class="r num">${f1(L.reb)}</td>${played ? `<td class="r num">${v && v.g ? f1(v.reb) : "-"}</td>` : ""}<td class="r num">${f1(L.ast)}</td>${played ? `<td class="r num">${v && v.g ? f1(v.ast) : "-"}</td>` : ""}<td class="r num">${L.fg ? pct(L.fg, 1) : "-"}</td><td class="r num">${L.tpa >= 0.5 ? pct(L.tp, 1) : "-"}</td><td class="r num">${f1(L.val)}</td></tr>`).join("")}${t.ros.map(id => G.P[id]).filter(p => p && !P.by[p.id]).map(p => `<tr class="click tot" data-act="player" data-k="${p.id}"><td>${posTag(p)} ${esc(pShort(p))}</td><td class="muted" colspan="${played ? 11 : 7}">Outside the projected rotation${p.rsh ? " (redshirting)" : p.inj > 0 ? " (injured)" : ""}</td></tr>`).join("")}</tbody></table></div>
+  <p class="small muted">Value is the game's all-in box-score number per game (points, rebounds, assists, steals and blocks, less misses and turnovers); it also picks the All-America teams.</p></section>
+  ${pjHonors(true)}`;
+}
+// preseason All-America and all-conference teams
+function pjHonors(compact) {
+ if (!pjOk()) return "";
+ const P = G.proj, me = T(G.me.tid), code = UI.pjConf && G.confs[UI.pjConf] ? UI.pjConf : me.conf;
+ const row = id => { const p = G.P[id]; if (!p) return ""; const L = P.by[id] || {}, v = G.phase !== "preseason" ? pjVs(p) : null;
+  return `<div class="li click${isMe(p.tid) ? " ours" : ""}" data-act="player" data-k="${id}">${posTag(p)}<div class="grow"><b>${esc(pName(p))}</b><small>${esc(T(p.tid).n)}, ${yrLbl(p)}</small></div><span class="small num">${f1(L.pts)} / ${f1(L.reb)} / ${f1(L.ast)}${v && v.g ? ` <span class="muted">→</span> ${f1(v.pts)} / ${f1(v.reb)} / ${f1(v.ast)}` : ""}</span></div>`; };
+ const confs = Object.keys(G.confs).sort((a, b) => confName(a, G.year).localeCompare(confName(b, G.year)));
+ return `<section class="card"><h2 class="ttl">Preseason All-America</h2><p class="small muted">Projected points / rebounds / assists${G.phase !== "preseason" ? ", then what each has done" : ""}. ${G.P[P.poy] ? `Preseason Player of the Year: <b>${esc(pName(G.P[P.poy]))}</b>, ${esc(T(G.P[P.poy].tid).n)}.` : ""}</p>
+  <div class="grid2"><div><h3 class="small muted">First team</h3><div class="list">${P.aa.slice(0, 5).map(row).join("")}</div></div><div><h3 class="small muted">Second team</h3><div class="list">${P.aa.slice(5, 10).map(row).join("")}</div></div></div></section>
+  <section class="card"><div class="between"><h2 class="ttl">Preseason all-conference</h2><label class="sr" for="pjconf">Conference</label><select id="pjconf" data-act="pjconf">${confs.map(c => `<option value="${c}"${c === code ? " selected" : ""}>${esc(confName(c, G.year))}</option>`).join("")}</select></div>
+  <div class="list">${(P.conf[code] || []).map(row).join("") || '<div class="li small muted">No projections for this conference.</div>'}</div></section>`;
+}
+// dashboard panels in the preseason
+function pjDash() {
+ if (G.phase !== "preseason" && G.phase !== "season") return "";
+ if (!pjOk()) return G.phase === "preseason" ? `<section class="dpanel p-proj" aria-label="Projections"><div class="dp-h"><h2 class="dp-t">Projections</h2></div>${pjPending()}</section>` : "";
+ if (G.phase === "season" && G.wk > 2) return "";
+ const P = G.proj, t = T(G.me.tid), top = t.ros.map(id => G.P[id]).filter(p => p && P.by[p.id]).sort((a, b) => P.by[b.id].pts - P.by[a.id].pts).slice(0, 5);
+ const hon = [...P.aa.filter(id => isMe(G.P[id].tid)).map(id => [id, P.aa.indexOf(id) < 5 ? "Preseason All-America, first team" : "Preseason All-America, second team"]), ...(P.conf[t.conf] || []).filter(id => isMe(G.P[id].tid) && !P.aa.includes(id)).map(id => [id, "Preseason all-conference"])];
+ return `<section class="dpanel p-proj" aria-label="Projections"><div class="dp-h"><h2 class="dp-t">Projections</h2><button class="link small" data-act="dashgo" data-k="team" data-k2="proj">All players</button></div>
+  <div class="tw"><table class="tbl st" data-sortable="0"><thead><tr><th>Player</th><th class="r">Min</th><th class="r">Pts</th><th class="r">Reb</th><th class="r">Ast</th></tr></thead><tbody>${top.map(p => { const L = P.by[p.id]; return `<tr class="click" data-act="player" data-k="${p.id}"><td>${posTag(p)} ${esc(pShort(p))}</td><td class="r num">${f1(L.min)}</td><td class="r num"><b>${f1(L.pts)}</b></td><td class="r num">${f1(L.reb)}</td><td class="r num">${f1(L.ast)}</td></tr>`; }).join("")}</tbody></table></div>
+  <div class="small">${hon.length ? hon.map(([id, l]) => `<div><b>${esc(pShort(G.P[id]))}</b>: ${l}</div>`).join("") : '<span class="muted">No preseason honors for your players.</span>'}</div>
+  <button class="link small" data-act="dashgo" data-k="league" data-k2="awards">Preseason All-America and all-conference teams</button></section>`;
+}
+// player sheet: projection against the season so far
+function pjPlayer(p) {
+ const v = pjVs(p); if (!v || !(G.proj.y === G.year)) return "";
+ const L = v.L, cell = (lbl, a, b, fmt) => `<div class="kpi"><b>${fmt(a)}</b><span>${lbl}${b !== null ? ` <span class="${b - a >= 0 ? "good" : "bad"}">${fmt(b)} so far</span>` : ""}</span></div>`;
+ const has = v.g > 0, f = x => f1(x), pc = x => pct(x, 1);
+ return `<section class="card flat"><h2 class="ttl">Preseason projection</h2><div class="kpis" style="--cn:3">${cell("Minutes", L.min, has ? v.min : null, f)}${cell("Points", L.pts, has ? v.pts : null, f)}${cell("Rebounds", L.reb, has ? v.reb : null, f)}${cell("Assists", L.ast, has ? v.ast : null, f)}${cell("FG%", L.fg, has ? v.fg : null, pc)}${cell("Value", L.val, has ? v.val : null, f)}</div></section>`;
+}
+// season review: how the model did
+function pjReview() {
+ const P = G.proj; if (!P || !P.by || P.y !== G.year) return "";
+ const t = T(G.me.tid), rows = t.ros.map(id => G.P[id]).filter(p => p && P.by[p.id]).map(p => [p, pjVs(p)]).filter(([, v]) => v && v.g >= 8).sort((a, b) => (b[1].val - b[1].L.val) - (a[1].val - a[1].L.val));
+ if (!rows.length) return "";
+ const mae = avgOf(rows.map(([, v]) => Math.abs(v.pts - v.L.pts))), beat = rows.filter(([, v]) => v.val - v.L.val >= 1.5).length, short = rows.filter(([, v]) => v.val - v.L.val <= -1.5).length;
+ const aaRows = P.aa.map(id => G.P[id]).filter(Boolean), aaHit = aaRows.filter(p => G.awards && G.awards.aa.includes(p.id)).length;
+ const best = rows[0], worst = rows[rows.length - 1];
+ return `<section class="card"><h2 class="ttl">Projections vs results</h2>
+  <p class="small">${beat} of your ${rows.length} rotation players beat their preseason projection and ${short} fell short. The model missed your players' scoring by ${f1(mae)} points a game on average.${best && best[1].val - best[1].L.val >= 1.5 ? ` Biggest leap: <b>${esc(pName(best[0]))}</b>, ${f1(best[1].pts)} ppg against ${f1(best[1].L.pts)} projected.` : ""}${worst && worst[1].val - worst[1].L.val <= -1.5 ? ` Biggest drop: <b>${esc(pName(worst[0]))}</b>, ${f1(worst[1].pts)} ppg against ${f1(worst[1].L.pts)}.` : ""}</p>
+  <div class="tw"><table class="tbl" data-sortable="0"><thead><tr><th>Player</th><th class="r">Pts proj.</th><th class="r">Actual</th><th class="r">Reb proj.</th><th class="r">Actual</th><th class="r">Ast proj.</th><th class="r">Actual</th><th>Verdict</th></tr></thead><tbody>
+  ${rows.map(([p, v]) => { const vd = pjVerdict((v.val - v.L.val) * 2); return `<tr class="click" data-act="player" data-k="${p.id}"><td>${esc(pShort(p))}</td><td class="r num">${f1(v.L.pts)}</td><td class="r num"><b>${f1(v.pts)}</b></td><td class="r num">${f1(v.L.reb)}</td><td class="r num">${f1(v.reb)}</td><td class="r num">${f1(v.L.ast)}</td><td class="r num">${f1(v.ast)}</td><td><span class="pill ${vd[1]}">${vd[0]}</span></td></tr>`; }).join("")}</tbody></table></div>
+  ${G.awards ? `<p class="small muted">${aaHit} of the 10 preseason All-Americans made the final All-America teams. ${G.P[P.poy] && G.P[G.awards.poy] ? `Preseason Player of the Year ${esc(pName(G.P[P.poy]))} ${G.awards.poy === P.poy ? "won it" : `finished behind ${esc(pName(G.P[G.awards.poy]))}`}.` : ""}</p>` : ""}</section>`;
 }
 
 /* ============ Team: roster, rotation and minutes, strategy ============ */
@@ -4124,9 +4311,9 @@ const OFF_PH = ["review", "jobs", "draft", "realign", "departures", "portal", "s
 function incomingList() { const me = G.me.tid; return G.rc ? G.rc.list.map(id => G.P[id]).filter(p => p && p.cm === me && p.tid !== me) : []; }
 function newTag(p) { if (G.phase === "departures" && p.leaving) return `<span class="pill l">${p.leaving === 1 ? "Graduating" : "Leaving"}</span>`; return p.inc && !(p.s && p.s[0] > 0) ? `<span class="pill a">${p.incT ? "New transfer" : p.yr <= 1 ? "New freshman" : "New"}</span>` : ""; }
 function rTeam() {
- const sub = ["roster", "rotation", "strategy", "practice", "tstats"].includes(UI.sub) ? UI.sub : "roster";
- const head = `<div class="subtabs" role="group">${[["roster", "Roster"], ["rotation", "Rotation"], ["strategy", "Strategy"], ["practice", "Practice"], ["tstats", "Stats"]].map(([k, l]) => `<button data-act="sub" data-k="${k}" aria-pressed="${sub === k}">${l}</button>`).join("")}</div>`;
- return head + ({roster: rRoster, rotation: rRotation, strategy: rStrategy, practice: rPractice, tstats: rTeamStats})[sub]();
+ const sub = ["roster", "rotation", "strategy", "practice", "proj", "tstats"].includes(UI.sub) ? UI.sub : "roster";
+ const head = `<div class="subtabs" role="group">${[["roster", "Roster"], ["rotation", "Rotation"], ["strategy", "Strategy"], ["practice", "Practice"], ["proj", "Projections"], ["tstats", "Stats"]].map(([k, l]) => `<button data-act="sub" data-k="${k}" aria-pressed="${sub === k}">${l}</button>`).join("")}</div>`;
+ return head + ({roster: rRoster, rotation: rRotation, strategy: rStrategy, practice: rPractice, proj: rProjections, tstats: rTeamStats})[sub]();
 }
 function rRoster() {
  const t = T(G.me.tid), ps = myPlayers().sort((a, b) => ovr(b) - ovr(a)), r = teamRatings(t, null, G.strat);
@@ -4218,6 +4405,7 @@ function mPlayer(m) {
   ${mine ? `<div class="small">Morale ${Math.round(p.mor)} (${moraleIcon(p.mor)}), Work ethic ${p.we}, Loyalty ${p.loy}, NIL motivation ${p.nilm}${p.inj > 0 ? `, <span class="bad">${esc(p.injn || "injured")}, ${p.inj}w</span>` : ""}</div>` : ""}
   <section class="card flat"><h2 class="ttl">Ratings</h2><div class="ratings">${AK.map((k, i) => `<div class="rat"><span>${ALBL[i]}</span><b class="num">${p.r[i]}</b>${meter(p.r[i], p.r[i] >= 75 ? "lit" : p.r[i] < 45 ? "lo" : "")}</div>`).join("")}</div></section>
   ${g ? `<section class="card flat"><h2 class="ttl">This season</h2><div class="kpis">${kpi(g, "Games")}${kpi(f1(s[2] / g), "Min")}${kpi(f1(s[3] / g), "Pts")}${kpi(f1((s[10] + s[11]) / g), "Reb")}${kpi(f1(s[12] / g), "Ast")}${kpi(s[5] ? pct(s[4] / s[5], 1) : "-", "FG%")}${kpi(s[7] ? pct(s[6] / s[7], 1) : "-", "3P%")}${kpi(s[9] ? pct(s[8] / s[9], 1) : "-", "FT%")}</div></section>` : ""}
+  ${pjPlayer(p)}
   ${mine || p.sz || p.szl ? (() => { const cur = p.sz && sum(p.sz.filter((v, j) => j % 2 === 0)) >= 15, src = cur ? p.sz : p.szl; return src ? `<section class="card flat"><h2 class="ttl">Shot chart${cur ? "" : ", last season"}</h2>${shotChart(src, {title: pName(p) + " shot chart"})}</section>` : mine ? `<section class="card flat"><h2 class="ttl">Shot chart</h2>${shotChart(p.sz, {title: pName(p)})}</section>` : ""; })() : ""}
   ${mine ? gameLog(p) : ""}
   ${rows ? `<section class="card flat"><h2 class="ttl">Career</h2><div class="tw"><table class="tbl"><thead><tr><th>Season</th><th>Team</th><th class="r">G</th><th class="r">Min</th><th class="r">Pts</th><th class="r">Reb</th><th class="r">Ast</th><th class="r">OVR</th></tr></thead><tbody>${rows}</tbody></table></div></section>` : ""}
@@ -4405,13 +4593,13 @@ function rBracket() {
 }
 function rAwards() {
  const A = G.awards;
- if (!A) return `<section class="card"><p class="muted">Awards are handed out after the national championship.</p></section>`;
+ if (!A) return `<section class="card"><p class="muted">Season awards are handed out after the national championship.</p></section>${pjOk() ? pjHonors() : pjNeeded() ? `<section class="card">${pjPending()}</section>` : ""}`;
  const row = id => { const p = G.P[id]; if (!p) return ""; const g = p.s[0] || 1; return `<div class="li click" data-act="player" data-k="${id}">${posTag(p)}<div class="grow"><b>${esc(pName(p))}</b><small>${esc(T(p.tid).n)}, ${yrLbl(p)}</small></div><span class="small num">${f1(p.s[3] / g)} / ${f1((p.s[10] + p.s[11]) / g)} / ${f1(p.s[12] / g)}</span></div>`; };
  return `<section class="card"><h2 class="ttl">National Player of the Year</h2><div class="list">${row(A.poy)}</div></section>
   <section class="card"><h2 class="ttl">All-America first team</h2><div class="list">${A.aa.slice(0, 5).map(row).join("")}</div></section>
   <section class="card"><h2 class="ttl">Second team</h2><div class="list">${A.aa.slice(5, 10).map(row).join("")}</div></section>
   ${A.fr ? `<section class="card"><h2 class="ttl">Freshman of the Year</h2><div class="list">${row(A.fr)}</div></section>` : ""}
-  <section class="card"><h2 class="ttl">Coach of the Year</h2><p><b>${esc(T(A.coy).coach.n)}</b>, ${esc(T(A.coy).n)}</p></section>`;
+  <section class="card"><h2 class="ttl">Coach of the Year</h2><p><b>${esc(T(A.coy).coach.n)}</b>, ${esc(T(A.coy).n)}</p></section>${pjOk() ? pjHonors() : ""}`;
 }
 function rHallTab() {
  const H = loadJ("mg_hall", []), B = loadJ("mg_badges", {});
@@ -5241,7 +5429,7 @@ function act(a, k, k2, el) {
  }
  // ---- season ----
  if (a === "ev") { if (G.ev) { resolveEvent(+k); save(); render(); } return; }
- if (a === "tipoff") { G.phase = "season"; G.lastEv = null; addNews(`Tip-off: ${seasonLbl(G.year)} is under way.`, ""); save(); render(); return; }
+ if (a === "tipoff") { pjFinishNow(); G.phase = "season"; G.lastEv = null; addNews(`Tip-off: ${seasonLbl(G.year)} is under way.`, ""); save(); render(); return; }
  if (a === "pregame") { G.lastEv = null; const g = pend() || (G.phase === "season" ? advanceToMyGame() : null); if (g && g.a < 0) { simMine(g); toast("Beat a non-Division I opponent"); save(); render(); return; } if (g) { save(); openPregame(g); } else { save(); render(); } return; }
  if (a === "simgame") { G.lastEv = null; const g = pend() || advanceToMyGame(); if (g) simMine(g); save(); render(); return; }
  if (a === "simweek") { G.lastEv = null; simWeek(); save(); render(); return; }
@@ -5335,7 +5523,7 @@ document.addEventListener("click", e => {
  if (e.target.closest("#modal") && e.target.id === "modal") return;
  act(b.dataset.act, b.dataset.k, b.dataset.k2, b);
 });
-document.addEventListener("change", e => { if (e.target.matches && e.target.matches(".fader")) { faderInput(e.target, true); return; } const s = e.target.closest("select[data-act='focus']"); if (s) { G.focus[+s.dataset.k] = s.value; save(); } });
+document.addEventListener("change", e => { if (e.target.matches && e.target.matches(".fader")) { faderInput(e.target, true); return; } const s = e.target.closest("select[data-act='focus']"); if (s) { G.focus[+s.dataset.k] = s.value; save(); } if (e.target.matches && e.target.matches("select[data-act='pjconf']")) { UI.pjConf = e.target.value; render(); } });
 document.addEventListener("input", e => {
  const el = e.target; if (el.matches && el.matches(".fader")) { faderInput(el, false); return; } if (!UI.setup) return;
  if (el.dataset.input === "tsearch") { UI.setup.q = el.value; const pos = el.selectionStart; render(); const n = $("#tsearch"); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }
