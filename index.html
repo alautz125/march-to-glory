@@ -729,7 +729,9 @@ button.cal-g { cursor: pointer; } button.cal-g:hover { border-color: var(--color
 @media (min-width: 900px) { .card.sos { position: sticky; top: 72px; z-index: var(--z-raised); padding-bottom: var(--space-sm); background: var(--color-paper); } }
 
 /* ---------- scholarship grid ---------- */
-.sg-wrap { display: grid; gap: var(--space-sm); }
+.sg-wrap { display: grid; gap: var(--space-sm); min-width: 0; }
+/* the roster table's wrapper is a grid item: without min-width 0 it grows to the table's width and the table can't scroll sideways */
+.rostab { min-width: 0; } .rostab:not([hidden]) { display: grid; gap: var(--space-sm); }
 .tbl.sgrid { table-layout: fixed; min-width: 560px; } .tbl.sgrid td { white-space: normal; }
 .tbl.sgrid th:first-child, .tbl.sgrid td:first-child { width: 52px; }
 .tbl.sgrid td.sg { padding: var(--space-3xs); }
